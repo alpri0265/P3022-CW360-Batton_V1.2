@@ -15,12 +15,13 @@ MenuManager::MenuManager(LCDDisplay& lcd, SetZeroCallback setZero, SetValueCallb
 }
 
 void MenuManager::update(uint16_t adc, uint16_t raw100, uint16_t shown100, 
-                         bool btnUp, bool btnDown, bool btnOk, bool btnBack, bool btnOkLong) {
+                         bool btnUp, bool btnDown, bool btnOk, bool btnBack, bool btnOkLong,
+                         bool btnUpHeld, bool btnDownHeld) {
   // Store previous screen BEFORE processing to detect transitions
   Screen screenBefore = currentScreen_;
   
   // Process state machine with button events
-  processEvents(adc, raw100, shown100, btnUp, btnDown, btnOk, btnBack, btnOkLong, screenBefore);
+  processEvents(adc, raw100, shown100, btnUp, btnDown, btnOk, btnBack, btnOkLong, screenBefore, btnUpHeld, btnDownHeld);
   
   // Update previous screen AFTER processing for next cycle
   previousScreen_ = screenBefore;
@@ -30,7 +31,8 @@ void MenuManager::update(uint16_t adc, uint16_t raw100, uint16_t shown100,
 }
 
 void MenuManager::processEvents(uint16_t adc, uint16_t raw100, uint16_t shown100,
-                                bool btnUp, bool btnDown, bool btnOk, bool btnBack, bool btnOkLong, Screen screenBefore) {
+                                bool btnUp, bool btnDown, bool btnOk, bool btnBack, bool btnOkLong, Screen screenBefore,
+                                bool btnUpHeld, bool btnDownHeld) {
   uint32_t now = millis();
   bool anyButtonPressed = btnUp || btnDown || btnOk || btnBack || btnOkLong;
   
@@ -118,7 +120,63 @@ void MenuManager::processEvents(uint16_t adc, uint16_t raw100, uint16_t shown100
     
     // UP/DOWN buttons => change target angle value
     // Special handling for minute steps (2 = 1 min, 17 = 10 min) to avoid rounding errors
+    // Rapid change on long press: initial delay 500ms, then repeat every 100ms
+    static uint32_t lastUpPressStart = 0;
+    static uint32_t lastDownPressStart = 0;
+    static uint32_t lastRapidChangeMs = 0;
+    static const uint32_t RAPID_INITIAL_DELAY_MS = 500;  // Delay before rapid change starts
+    static const uint32_t RAPID_REPEAT_INTERVAL_MS = 100;  // Interval between rapid changes
+    
+    bool shouldChange = false;
+    bool changeUp = false;
+    
+    // Track when buttons start being held
+    if (btnUpHeld && lastUpPressStart == 0) {
+      lastUpPressStart = now;
+    }
+    if (btnDownHeld && lastDownPressStart == 0) {
+      lastDownPressStart = now;
+    }
+    
+    // Handle button events (single press)
     if (btnUp || btnDown) {
+      shouldChange = true;
+      changeUp = btnUp;
+      lastRapidChangeMs = now;
+    }
+    
+    // Handle rapid change on long press
+    if (btnUpHeld && lastUpPressStart > 0) {
+      uint32_t holdTime = now - lastUpPressStart;
+      if (holdTime >= RAPID_INITIAL_DELAY_MS) {
+        // Check if enough time has passed since last rapid change
+        if ((uint32_t)(now - lastRapidChangeMs) >= RAPID_REPEAT_INTERVAL_MS) {
+          shouldChange = true;
+          changeUp = true;
+          lastRapidChangeMs = now;
+        }
+      }
+    }
+    
+    if (btnDownHeld && lastDownPressStart > 0) {
+      uint32_t holdTime = now - lastDownPressStart;
+      if (holdTime >= RAPID_INITIAL_DELAY_MS) {
+        // Check if enough time has passed since last rapid change
+        if ((uint32_t)(now - lastRapidChangeMs) >= RAPID_REPEAT_INTERVAL_MS) {
+          shouldChange = true;
+          changeUp = false;
+          lastRapidChangeMs = now;
+        }
+      }
+    }
+    
+    // Reset press start timers when buttons are released
+    if (!btnUpHeld) lastUpPressStart = 0;
+    if (!btnDownHeld) lastDownPressStart = 0;
+    
+    if (shouldChange) {
+      bool isUp = changeUp;
+      bool isDown = !changeUp;
       if (step100_ == 2U || step100_ == 17U) {
         // Edit minutes directly to avoid rounding errors
         // Extract current degrees and minutes from target100_
@@ -139,7 +197,7 @@ void MenuManager::processEvents(uint16_t adc, uint16_t raw100, uint16_t shown100
         
         if (step100_ == 2U) {
           // Step = 1 minute - change units of minutes
-          new_min = (int16_t)current_min + (btnUp ? 1 : -1);
+          new_min = (int16_t)current_min + (isUp ? 1 : -1);
         } else {
           // step100_ == 17U, Step = 10 minutes - change tens of minutes
           // IMPORTANT: Change tens digit of minutes, not units!
@@ -150,7 +208,7 @@ void MenuManager::processEvents(uint16_t adc, uint16_t raw100, uint16_t shown100
           uint8_t units = current_min % 10;     // Units digit (0-9)
           uint8_t old_tens = tens;  // Save old value to detect wrap-around
           
-          if (btnUp) {
+          if (isUp) {
             // Increase tens: 0->1->2->3->4->5->0 (wrap around)
             tens++;
             if (tens > 5) {
@@ -185,7 +243,7 @@ void MenuManager::processEvents(uint16_t adc, uint16_t raw100, uint16_t shown100
           // step100_ == 17U: Handle wrap-around for tens editing
           // If tens wrapped around (0 <-> 5), adjust degrees
           if (tens_wrapped) {
-            if (btnUp) {
+            if (isUp) {
               // Wrapped from 5 tens to 0 tens (increasing) - increase degrees
               deg = (deg < 359) ? (deg + 1) : 0;
             } else {
@@ -215,12 +273,12 @@ void MenuManager::processEvents(uint16_t adc, uint16_t raw100, uint16_t shown100
         if (target100_ >= 36000) target100_ = 0;  // Safety wrap-around
       } else {
         // Normal editing for degree steps
-        if (btnUp) {
+        if (isUp) {
           int32_t t = (int32_t)target100_ + (int32_t)step100_;
           if (t >= 36000) t -= 36000;  // Wrap around
           target100_ = (uint16_t)t;
         }
-        if (btnDown) {
+        if (isDown) {
           int32_t t = (int32_t)target100_ - (int32_t)step100_;
           if (t < 0) t += 36000;  // Wrap around
           target100_ = (uint16_t)t;

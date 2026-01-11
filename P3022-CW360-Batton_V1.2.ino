@@ -300,8 +300,12 @@ void loop() {
         btnOkEvent = false;  // Prevent OK action when using long press for step size change
       }
       
+      // Check if Up/Down buttons are held down (for rapid value change in Set Value)
+      bool btnUpHeld = btnUp.isPressed();
+      bool btnDownHeld = btnDown.isPressed();
+      
       // Update menu with button events
-      menuManager->update(adc, raw100, shown, btnUpEvent, btnDownEvent, btnOkEvent, btnBackEvent, btnOkLongCombined);
+      menuManager->update(adc, raw100, shown, btnUpEvent, btnDownEvent, btnOkEvent, btnBackEvent, btnOkLongCombined, btnUpHeld, btnDownHeld);
     }
   }
 }

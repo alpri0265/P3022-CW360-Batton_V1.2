@@ -41,7 +41,7 @@ void LCDDisplay::showStartup() {
   if (!initialized_) begin();
   
   lcd.setCursor(0, 0); 
-  lcd.print("P3022 Sensor");
+  lcd.print("Diesel GPT");
   lcd.setCursor(0, 1);
   #if defined(__AVR_ATmega32U4__)
     lcd.print("Micro 32U4");
@@ -65,7 +65,7 @@ void LCDDisplay::showStartup() {
     lcd.setCursor(0, 3);
     lcd.print("Ready...");
   #endif
-  delay(800);
+  delay(3000);
   
   // Clear and show ready message
   clear();

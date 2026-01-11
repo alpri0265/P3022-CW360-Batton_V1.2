@@ -35,8 +35,10 @@ public:
 
   // Process UI events and update display
   // Button events: up, down, ok, back, okLong (okLong = long press on OK)
+  // btnUpHeld/btnDownHeld: true if button is currently held down (for rapid value change)
   void update(uint16_t adc, uint16_t raw100, uint16_t shown100, 
-              bool btnUp, bool btnDown, bool btnOk, bool btnBack, bool btnOkLong = false);
+              bool btnUp, bool btnDown, bool btnOk, bool btnBack, bool btnOkLong = false,
+              bool btnUpHeld = false, bool btnDownHeld = false);
 
          // Get current screen
          Screen getCurrentScreen() const { return currentScreen_; }
@@ -93,8 +95,10 @@ private:
 
   // Process button events and update state machine
   // screenBefore is the screen state BEFORE processing (passed from update() to detect transitions)
+  // btnUpHeld/btnDownHeld: true if button is currently held down (for rapid value change)
   void processEvents(uint16_t adc, uint16_t raw100, uint16_t shown100,
-                     bool btnUp, bool btnDown, bool btnOk, bool btnBack, bool btnOkLong, Screen screenBefore);
+                     bool btnUp, bool btnDown, bool btnOk, bool btnBack, bool btnOkLong, Screen screenBefore,
+                     bool btnUpHeld, bool btnDownHeld);
 
   // Render current screen to LCD
   void render(uint16_t adc, uint16_t raw100, uint16_t shown100);
