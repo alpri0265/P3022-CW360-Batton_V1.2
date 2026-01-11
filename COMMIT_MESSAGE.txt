@@ -1,0 +1,38 @@
+Refactor encoder to use external interrupts and fix menu navigation
+
+Major improvements:
+- Migrate encoder from polling to interrupt-based processing (ISR)
+- Fix menu item skipping issue - now 1 click = 1 menu item
+- Configure ENCODER_STEPS_PER_DETENT = 4 for proper EC-11 encoder handling
+- Disable debug output to reduce Serial overhead
+
+Encoder changes:
+- Implement interrupt service routines (ISR) for encoder pins A and B
+- Use CHANGE interrupt mode to catch all quadrature transitions
+- Accumulate encoder steps in volatile isrDelta_ variable
+- Transfer delta from ISR to main loop atomically with noInterrupts/interrupts
+
+MenuManager improvements:
+- Process exactly 1 detent per UI cycle to prevent skipping
+- Accumulate encoder delta before processing for smooth navigation
+- Limit accumulator to 3 detents maximum for fast rotation handling
+- Properly handle direction changes without false resets
+
+Configuration:
+- Set ENCODER_STEPS_PER_DETENT = 4 (matches typical EC-11: 4 pulses/click = 1 menu item)
+- Increase ENCODER_TICK_MS to 10ms (button processing only, rotation handled by ISR)
+- Comment out DEBUG_ENCODER_DELTA by default
+
+Technical details:
+- Encoder pins 2 and 3 support INT0/INT1 on Uno/Nano/Micro
+- digitalPinToInterrupt() automatically handles pin-to-interrupt mapping
+- ISR executes in <10 microseconds with minimal CPU overhead
+- No missed encoder steps even at high rotation speeds
+
+Files modified:
+- Encoder.h / Encoder.cpp: Complete rewrite for interrupt-based processing
+- MenuManager.cpp: Improved delta accumulation and processing logic
+- Config.h: Updated encoder configuration and timing constants
+- P3022-V1-CW360.ino: Updated timing comments
+
+Result: Smooth, accurate menu navigation with 1:1 mapping between encoder clicks and menu items.
