@@ -10,12 +10,11 @@ MenuManager::MenuManager(LCDDisplay& lcd, SetZeroCallback setZero, SetValueCallb
     invertToggle_(invertToggle), settings_(settings) {
   
   // Initialize menu items
-  menuItems_[0] = "View ADC";
-  menuItems_[1] = "Set Zero";
-  menuItems_[2] = "Set Value";
-  menuItems_[3] = "Cal Min";
-  menuItems_[4] = "Cal Max";
-  menuItems_[5] = "Invert";
+  menuItems_[0] = "Set Zero";
+  menuItems_[1] = "Set Value";
+  menuItems_[2] = "Cal Min";
+  menuItems_[3] = "Cal Max";
+  menuItems_[4] = "Invert";
 }
 
 void MenuManager::update(uint16_t adc, uint16_t raw100, uint16_t shown100, 
@@ -77,16 +76,15 @@ void MenuManager::processEvents(uint16_t adc, uint16_t raw100, uint16_t shown100
     // Select menu item with OK button
     if (btnOk) {
       switch (menuIdx_) {
-        case 0: currentScreen_ = SCR_ADC; break;
-        case 1: currentScreen_ = SCR_ZERO; break;
-        case 2:
+        case 0: currentScreen_ = SCR_ZERO; break;
+        case 1:
           currentScreen_ = SCR_SETVALUE;
           target100_ = shown100; // Start editing from current shown value
           step100_ = 2;          // 1 minute (simplified: removed 0.01° as redundant)
           break;
-        case 3: currentScreen_ = SCR_CALMIN; break;
-        case 4: currentScreen_ = SCR_CALMAX; break;
-        case 5: currentScreen_ = SCR_INVERT; break;
+        case 2: currentScreen_ = SCR_CALMIN; break;
+        case 3: currentScreen_ = SCR_CALMAX; break;
+        case 4: currentScreen_ = SCR_INVERT; break;
       }
       lastButtonEventMs_ = now;
     }
