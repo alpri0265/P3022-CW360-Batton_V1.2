@@ -10,9 +10,8 @@ MenuManager::MenuManager(LCDDisplay& lcd, SetZeroCallback setZero, SetValueCallb
     invertToggle_(invertToggle), settings_(settings) {
   
   // Initialize menu items
-  menuItems_[0] = "Set Zero";
-  menuItems_[1] = "Set Value";
-  menuItems_[2] = "Invert";
+  menuItems_[0] = "Set Value";
+  menuItems_[1] = "Invert";
 }
 
 void MenuManager::update(uint16_t adc, uint16_t raw100, uint16_t shown100, 
@@ -74,13 +73,12 @@ void MenuManager::processEvents(uint16_t adc, uint16_t raw100, uint16_t shown100
     // Select menu item with OK button
     if (btnOk) {
       switch (menuIdx_) {
-        case 0: currentScreen_ = SCR_ZERO; break;
-        case 1:
+        case 0:
           currentScreen_ = SCR_SETVALUE;
           target100_ = shown100; // Start editing from current shown value
           step100_ = 2;          // 1 minute (simplified: removed 0.01° as redundant)
           break;
-        case 2: currentScreen_ = SCR_INVERT; break;
+        case 1: currentScreen_ = SCR_INVERT; break;
       }
       lastButtonEventMs_ = now;
     }
