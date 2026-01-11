@@ -202,10 +202,10 @@ void MenuManager::processEvents(uint16_t adc, uint16_t raw100, uint16_t shown100
         // Table: for each minute (0-59), the smallest centidegrees (0-99) that rounds to it
         // This ensures exact round-trip: minutes → centidegrees → minutes = same minutes
         static const uint8_t min_to_centidegrees[60] = {
-          0,   1,   3,   5,   6,   7,   8,   9,  10,  11,  12,  13,  14,  15,  16,  17,
-         18,  19,  20,  21,  22,  23,  40,  42,  44,  45,  47,  48,  50,  52,  53,  55,
-         57,  58,  60,  62,  63,  65,  67,  68,  70,  72,  73,  75,  77,  78,  80,  82,
-         83,  85,  87,  88,  90,  92,  93,  95,  97,  98,  97,  98
+          0,   1,   3,   5,   6,   8,  10,  12,  13,  15,  17,  18,  20,  22,  23,  25,
+         27,  28,  30,  32,  33,  35,  37,  38,  40,  42,  43,  45,  47,  48,  50,  52,
+         53,  55,  57,  58,  60,  62,  63,  65,  67,  68,  70,  72,  73,  75,  77,  78,
+         80,  82,  83,  85,  87,  88,  90,  92,  93,  95,  97,  98
         };
         
         uint16_t new_centidegrees = (new_min < 60) ? min_to_centidegrees[new_min] : 99;
