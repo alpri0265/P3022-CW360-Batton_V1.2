@@ -12,9 +12,7 @@ MenuManager::MenuManager(LCDDisplay& lcd, SetZeroCallback setZero, SetValueCallb
   // Initialize menu items
   menuItems_[0] = "Set Zero";
   menuItems_[1] = "Set Value";
-  menuItems_[2] = "Cal Min";
-  menuItems_[3] = "Cal Max";
-  menuItems_[4] = "Invert";
+  menuItems_[2] = "Invert";
 }
 
 void MenuManager::update(uint16_t adc, uint16_t raw100, uint16_t shown100, 
@@ -82,9 +80,7 @@ void MenuManager::processEvents(uint16_t adc, uint16_t raw100, uint16_t shown100
           target100_ = shown100; // Start editing from current shown value
           step100_ = 2;          // 1 minute (simplified: removed 0.01° as redundant)
           break;
-        case 2: currentScreen_ = SCR_CALMIN; break;
-        case 3: currentScreen_ = SCR_CALMAX; break;
-        case 4: currentScreen_ = SCR_INVERT; break;
+        case 2: currentScreen_ = SCR_INVERT; break;
       }
       lastButtonEventMs_ = now;
     }
