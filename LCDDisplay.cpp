@@ -41,10 +41,10 @@ void LCDDisplay::showStartup() {
   if (!initialized_) begin();
   
   lcd.setCursor(0, 0); 
-  lcd.print("Diesel GPT");
+  lcd.print("   Diesel GPT  ");
   lcd.setCursor(0, 1);
   #if defined(__AVR_ATmega32U4__)
-    lcd.print("Micro 32U4");
+    lcd.print("      V1.2      ");
   #elif defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
     lcd.print("Uno/Nano 328");
   #else
@@ -65,7 +65,7 @@ void LCDDisplay::showStartup() {
     lcd.setCursor(0, 3);
     lcd.print("Ready...");
   #endif
-  delay(3000);
+  delay(5000);
   
   // Clear and show ready message
   clear();
@@ -76,7 +76,7 @@ void LCDDisplay::showStartup() {
     setLine(3, "");
   #endif
   flush();
-  delay(400);
+  delay(300);
 }
 
 void LCDDisplay::setLine(uint8_t row, const char* s) {
