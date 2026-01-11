@@ -10,13 +10,12 @@ MenuManager::MenuManager(LCDDisplay& lcd, SetZeroCallback setZero, SetValueCallb
     invertToggle_(invertToggle), settings_(settings) {
   
   // Initialize menu items
-  menuItems_[0] = "View";
-  menuItems_[1] = "View ADC";
-  menuItems_[2] = "Set Zero";
-  menuItems_[3] = "Set Value";
-  menuItems_[4] = "Cal Min";
-  menuItems_[5] = "Cal Max";
-  menuItems_[6] = "Invert";
+  menuItems_[0] = "View ADC";
+  menuItems_[1] = "Set Zero";
+  menuItems_[2] = "Set Value";
+  menuItems_[3] = "Cal Min";
+  menuItems_[4] = "Cal Max";
+  menuItems_[5] = "Invert";
 }
 
 void MenuManager::update(uint16_t adc, uint16_t raw100, uint16_t shown100, 
@@ -40,18 +39,10 @@ void MenuManager::processEvents(uint16_t adc, uint16_t raw100, uint16_t shown100
   bool anyButtonPressed = btnUp || btnDown || btnOk || btnBack || btnOkLong;
   
   // Check button event cooldown to prevent double-processing
-  // This prevents the same button press from being processed multiple times
-  // BUT: For Set Value screen, step change has its own cooldown (handled separately)
-  // IMPORTANT: Don't block step change in Set Value - it has its own cooldown mechanism
+  // Allow btnOkLong to pass through for Set Value (has own cooldown) and Main (quick zero)
   if (anyButtonPressed && (uint32_t)(now - lastButtonEventMs_) < BUTTON_EVENT_COOLDOWN_MS) {
-    // For Set Value screen, allow btnOkLong to pass through (step change cooldown is handled in SCR_SETVALUE block)
-    // For main screen, allow btnOkLong for quick zero
-    // For other screens, block all events during cooldown
-    if (currentScreen_ == SCR_SETVALUE && btnOkLong) {
-      // Allow step change to be processed (has its own cooldown)
-    } else if (currentScreen_ == SCR_MAIN && btnOkLong) {
-      // Allow quick zero (has its own handling)
-    } else if (!btnOkLong) {
+    bool allowLongPress = (currentScreen_ == SCR_SETVALUE || currentScreen_ == SCR_MAIN) && btnOkLong;
+    if (!allowLongPress) {
       return;  // Ignore button events too soon after last event
     }
   }
@@ -75,35 +66,27 @@ void MenuManager::processEvents(uint16_t adc, uint16_t raw100, uint16_t shown100
     }
     // Navigate menu with UP/DOWN buttons
     if (btnUp) {
-      if (menuIdx_ > 0) {
-        menuIdx_--;
-      } else {
-        menuIdx_ = MENU_N - 1;  // Wrap around to last item
-      }
+      menuIdx_ = (menuIdx_ > 0) ? menuIdx_ - 1 : MENU_N - 1;
       lastButtonEventMs_ = now;
     }
     if (btnDown) {
-      menuIdx_++;
-      if (menuIdx_ >= MENU_N) {
-        menuIdx_ = 0;  // Wrap around to first item
-      }
+      menuIdx_ = (menuIdx_ < MENU_N - 1) ? menuIdx_ + 1 : 0;
       lastButtonEventMs_ = now;
     }
     
     // Select menu item with OK button
     if (btnOk) {
       switch (menuIdx_) {
-        case 0: currentScreen_ = SCR_VIEW; break;
-        case 1: currentScreen_ = SCR_ADC; break;
-        case 2: currentScreen_ = SCR_ZERO; break;
-        case 3:
+        case 0: currentScreen_ = SCR_ADC; break;
+        case 1: currentScreen_ = SCR_ZERO; break;
+        case 2:
           currentScreen_ = SCR_SETVALUE;
           target100_ = shown100; // Start editing from current shown value
           step100_ = 2;          // 1 minute (simplified: removed 0.01° as redundant)
           break;
-        case 4: currentScreen_ = SCR_CALMIN; break;
-        case 5: currentScreen_ = SCR_CALMAX; break;
-        case 6: currentScreen_ = SCR_INVERT; break;
+        case 3: currentScreen_ = SCR_CALMIN; break;
+        case 4: currentScreen_ = SCR_CALMAX; break;
+        case 5: currentScreen_ = SCR_INVERT; break;
       }
       lastButtonEventMs_ = now;
     }
@@ -115,38 +98,24 @@ void MenuManager::processEvents(uint16_t adc, uint16_t raw100, uint16_t shown100
     }
   }
   else if (currentScreen_ == SCR_SETVALUE) {
-    // IMPORTANT: Check long press OK FIRST, before regular OK button
-    // Long press OK => cycle through step sizes (0.01°, 0.1°, 1°, 10°, 100°)
-    // Use cooldown to prevent multiple step changes from double-trigger
+    // Long press OK => cycle through step sizes
     static uint32_t lastStepChangeMs = 0;
-    static const uint32_t STEP_CHANGE_COOLDOWN_MS = 250;  // Minimum 250ms between step changes (allows faster cycling)
+    static const uint32_t STEP_CHANGE_COOLDOWN_MS = 250;
     
-    // Process step change only if cooldown has passed
-    // IMPORTANT: This must work for ALL step values including 100 (1°) and 10000 (100°)
     if (btnOkLong) {
       // Check cooldown to prevent double-trigger
       if ((uint32_t)(now - lastStepChangeMs) >= STEP_CHANGE_COOLDOWN_MS) {
-        // Cycle through step sizes for editing degrees and minutes
-        // Steps for degrees: 100 (1°), 1000 (10°), 10000 (100°)
-        // Steps for minutes: 2 (1 minute ≈ 0.0167°), 17 (10 minutes ≈ 0.167°)
-        // Conversion: 1 minute = 1/60° = 0.01667° = 1.667 centidegrees
-        // We use: 2 centidegrees ≈ 1.2 minutes (close enough), 17 centidegrees ≈ 10.2 minutes
-        // Simplified cycle: 2 (1 min) -> 17 (10 min) -> 100 (1°) -> 1000 (10°) -> 10000 (100°) -> 2
-        // Removed 1U (0.01°) and 10U (0.1°) as they are redundant (too close to 1 min and 10 min)
-        if (step100_ == 2U) {
-          step100_ = 17U;  // 1 minute -> 10 minutes (≈0.167°)
-        } else if (step100_ == 17U) {
-          step100_ = 100U;  // 10 minutes -> 1°
-        } else if (step100_ == 100U) {
-          step100_ = 1000U;  // 1° -> 10°
-        } else if (step100_ == 1000U) {
-          step100_ = 10000U;  // 10° -> 100°
-        } else if (step100_ == 10000U) {
-          step100_ = 2U;  // 100° -> 1 minute (wrap around)
-        } else {
-          // Fallback: if step100_ has unexpected value, reset to 1 minute
-          step100_ = 2U;
+        // Cycle through step sizes: 2 (1 min) -> 17 (10 min) -> 100 (1°) -> 1000 (10°) -> 10000 (100°) -> 2
+        static const uint16_t stepCycle[] = {2, 17, 100, 1000, 10000};
+        static const uint8_t stepCycleSize = sizeof(stepCycle) / sizeof(stepCycle[0]);
+        uint8_t idx = 0;
+        for (uint8_t i = 0; i < stepCycleSize; i++) {
+          if (step100_ == stepCycle[i]) {
+            idx = (i + 1) % stepCycleSize;
+            break;
+          }
         }
+        step100_ = stepCycle[idx];
         
         lastButtonEventMs_ = now;
         lastOkLongPressMs_ = now;  // Record time to ignore click after release (prevents accidental apply)
@@ -236,53 +205,10 @@ void MenuManager::processEvents(uint16_t adc, uint16_t raw100, uint16_t shown100
         if (new_min < 0) new_min = 0;  // Safety clamp
         if (new_min >= 60) new_min = 59;  // Safety clamp
         
-        // Convert minutes back to centidegrees
-        // We need to find the centidegrees value that, when converted to minutes using formatAngle100,
-        // gives exactly new_min
-        // Formula: minutes = (centidegrees * 60 + 50) / 100
-        // Inverse: centidegrees = (minutes * 100 - 50) / 60
-        // But we need exact round-trip: find centidegrees such that round(centidegrees * 60 / 100) = new_min
-        
-        // Pre-calculated lookup table: for each minute (0-59), the centidegrees value that rounds to it
+        // Convert minutes back to centidegrees using lookup table
         // Formula: minutes = (centidegrees * 60 + 50) / 100 (rounding to nearest)
-        // For each minute, find the smallest centidegrees value that rounds to exactly that minute
-        // Calculated by: for each centidegrees (0-99), calculate minutes, then assign to table
+        // Table: for each minute (0-59), the smallest centidegrees (0-99) that rounds to it
         // This ensures exact round-trip: minutes → centidegrees → minutes = same minutes
-        // Table verified: each entry rounds to its index when using formatAngle100 formula
-        // Lookup table: for each minute (0-59), the centidegrees value that rounds to it
-        // Formula: minutes = (centidegrees * 60 + 50) / 100 (integer division with rounding)
-        // For each minute, find the smallest centidegrees value that rounds to exactly that minute
-        // This ensures exact round-trip: minutes → centidegrees → minutes = same minutes
-        // Calculated by: for each minute (0-59), find smallest cd where (cd*60+50)/100 == minute
-        // Example: minute=0 → cd=0 (0*60+50)/100=0, minute=1 → cd=1 (1*60+50)/100=1, minute=2 → cd=2 (2*60+50)/100=1 (wrong!)
-        // Correct: minute=2 → cd=4 (4*60+50)/100=2.9→2, minute=3 → cd=5 (5*60+50)/100=3.5→3
-        // Verified manually: each entry correctly rounds to its index
-        // Table calculated correctly: for each minute (0-59), find smallest centidegrees where (cd*60+50)/100 == minute
-        // Verified: 0→0, 1→1, 2→2, 3→4, 4→5, 5→6, 6→7, 7→8, 8→9, 9→10, 10→11, 11→12, 12→13, 13→14, 14→15, 15→16,
-        // 16→17, 17→18, 18→19, 19→20, 20→21, 21→22, 22→23, 23→24, 24→25, 25→26, 26→27, 27→28, 28→29, 29→30, 30→31, 31→32,
-        // 32→33, 33→34, 34→35, 35→36, 36→37, 37→38, 38→39, 39→40, 40→41, 41→42, 42→43, 43→44, 44→45, 45→46, 46→47, 47→48,
-        // 48→49, 49→50, 50→51, 51→52, 52→53, 53→54, 54→55, 55→56, 56→57, 57→58, 58→59, 59→60
-        // Lookup table: for each minute (0-59), the smallest centidegrees (0-99) that rounds to it
-        // Formula: minutes = (centidegrees * 60 + 50) / 100
-        // Calculated: for each minute, find smallest cd where (cd*60+50)/100 == minute
-        // IMPORTANT: All values must be in range 0-99 (centidegrees cannot exceed 99)
-        // Verified: min=0→cd=0, min=1→cd=1, min=2→cd=3, min=10→cd=16, min=59→cd=98
-        // Lookup table: for each minute (0-59), find smallest centidegrees (0-99) where (cd*60+50)/100 == minute
-        // Formula: minutes = (centidegrees * 60 + 50) / 100 (integer division with rounding)
-        // Corrected table: calculated by finding smallest cd for each minute
-        // Key corrections: min=25→cd=42 (not 25!), min=35→cd=58 (not 35!), min=59→cd=98 (not 60!)
-        // Corrected lookup table: for each minute (0-59), find smallest centidegrees (0-99) where (cd*60+50)/100 == minute
-        // Key corrections: min=25→cd=42, min=26→cd=44, min=27→cd=45, min=28→cd=47, min=29→cd=48, min=30→cd=50,
-        // min=31→cd=52, min=32→cd=53, min=33→cd=55, min=34→cd=57, min=35→cd=58, min=36→cd=60, min=37→cd=62,
-        // min=38→cd=63, min=39→cd=65, min=40→cd=67, min=41→cd=68, min=42→cd=70, min=43→cd=72, min=44→cd=73,
-        // min=45→cd=75, min=46→cd=77, min=47→cd=78, min=48→cd=80, min=49→cd=82, min=50→cd=83, min=51→cd=85,
-        // min=52→cd=87, min=53→cd=88, min=54→cd=90, min=55→cd=92, min=56→cd=93, min=57→cd=95, min=58→cd=97, min=59→cd=98
-        // Lookup table: for each minute index (0-59), find smallest centidegrees (0-99) where (cd*60+50)/100 == index
-        // Formula: minutes = (centidegrees * 60 + 50) / 100 (integer division with rounding)
-        // Corrected table: each index has correct centidegrees value
-        // Key corrections: index 24→40, 25→42, 26→44, 27→45, 28→47, 29→48, 30→50, 31→52, 32→53, 33→55,
-        // 34→57, 35→58, 36→60, 37→62, 38→63, 39→65, 40→67, 41→68, 42→70, 43→72, 44→73, 45→75,
-        // 46→77, 47→78, 48→80, 49→82, 50→83, 51→85, 52→87, 53→88, 54→90, 55→92, 56→93, 57→95, 58→97, 59→98
         static const uint8_t min_to_centidegrees[60] = {
           0,   1,   3,   5,   6,   7,   8,   9,  10,  11,  12,  13,  14,  15,  16,  17,
          18,  19,  20,  21,  22,  23,  40,  42,  44,  45,  47,  48,  50,  52,  53,  55,
@@ -290,12 +216,7 @@ void MenuManager::processEvents(uint16_t adc, uint16_t raw100, uint16_t shown100
          83,  85,  87,  88,  90,  92,  93,  95,  97,  98,  97,  98
         };
         
-        uint16_t new_centidegrees;
-        if (new_min < 60) {
-          new_centidegrees = min_to_centidegrees[new_min];
-        } else {
-          new_centidegrees = 99;  // Safety fallback
-        }
+        uint16_t new_centidegrees = (new_min < 60) ? min_to_centidegrees[new_min] : 99;
         
         // Reconstruct target100_
         target100_ = deg * 100 + new_centidegrees;
@@ -622,19 +543,13 @@ void MenuManager::render(uint16_t adc, uint16_t raw100, uint16_t shown100) {
         #if LCD_ROWS >= 4
           char a[8]; formatAngle100(a, raw100);
           snprintf(buf2, LCD_COLS + 1, "Raw: %s", a);
-          if (step100_ == 2U) {
-            snprintf(buf3, LCD_COLS + 1, "Step: 1 min (LOK:change)");
-          } else if (step100_ == 17U) {
-            snprintf(buf3, LCD_COLS + 1, "Step: 10 min (LOK:change)");
-          } else if (step100_ == 100U) {
-            snprintf(buf3, LCD_COLS + 1, "Step: 1 deg (LOK:change)");
-          } else if (step100_ == 1000U) {
-            snprintf(buf3, LCD_COLS + 1, "Step: 10 deg (LOK:change)");
-          } else if (step100_ == 10000U) {
-            snprintf(buf3, LCD_COLS + 1, "Step: 100 deg (LOK:change)");
-          } else {
-            snprintf(buf3, LCD_COLS + 1, "Step: ? (LOK:change)");
-          }
+          const char* stepText = "?";
+          if (step100_ == 2U) stepText = "1 min";
+          else if (step100_ == 17U) stepText = "10 min";
+          else if (step100_ == 100U) stepText = "1 deg";
+          else if (step100_ == 1000U) stepText = "10 deg";
+          else if (step100_ == 10000U) stepText = "100 deg";
+          snprintf(buf3, LCD_COLS + 1, "Step: %s (LOK:change)", stepText);
         #endif
       }
       break;

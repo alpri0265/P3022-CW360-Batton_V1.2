@@ -57,7 +57,7 @@ private:
   uint16_t step100_;   // 1=0.01°, 2=1min, 10=0.1°, 17=10min, 100=1°, 1000=10°, 10000=100°
   
   // Menu items
-  static const uint8_t MENU_N = 7;
+  static const uint8_t MENU_N = 6;
   const char* menuItems_[MENU_N];
   
   // Button event cooldown to prevent double-processing
